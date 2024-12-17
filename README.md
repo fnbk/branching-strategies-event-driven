@@ -1,239 +1,52 @@
 # Branching Strategies - Event Driven
 
-## The Tangled Web
+# Simplifying Asynchronous Code in C# with Design Patterns
+# .NET Strategies to Simplify Asynchronous Code in C#: The Journey from Nested Callbacks to Elegant Solutions
 
-Consider an online store backend service that processes customer order - retrieving, discounting, and updating orders, all executed asynchronously. This is usually the point where things get messy: your code becomes tangled with nested callbacks, and it starts to look like this:
+## Introduction
 
-```csharp
-public Task<bool> CompleteOrderProcessAsync(int orderId)
-{
-    var tcs = new TaskCompletionSource<bool>();
+This repository contains examples and code snippets discussed in the article [.NET Strategies with Advanced Iteration Techniques for C# Collections](https://fnbk.medium.com/net-strategies-to-simplify-asynchronous-code-in-c-be28a88cbea1). The article provides insights into handling complex asynchronous code paths in C# by employing various .NET features and design patterns.
 
-    RetrieveOrderAsync(orderId).ContinueWith(retrieveTask =>
-    {
-        if (retrieveTask.Status == TaskStatus.RanToCompletion)
-        {
-            var order = retrieveTask.Result;
-            if (order != null)
-            {
-                ApplyDiscountsAsync(order).ContinueWith(discountTask =>
-                {
-                    if (discountTask.Status == TaskStatus.RanToCompletion)
-                    {
-                        var discountedOrder = discountTask.Result;
-                        UpdateOrderAsync(discountedOrder).ContinueWith(saveTask =>
-                        {
-                            if (saveTask.Status == TaskStatus.RanToCompletion)
-                            {
-                                tcs.SetResult(true); // Indicates success  
-                            }
-                            else
-                            {
-                                Console.WriteLine($"Error processing order: {saveTask.Exception.Message}");
-                                tcs.SetResult(false);
-                            }
-                        });
-                    }
-                    else
-                    {
-                        Console.WriteLine($"Error processing order: {discountTask.Exception.Message}");
-                        tcs.SetResult(false);
-                    }
-                });
-            }
-            else
-            {
-                Console.WriteLine($"Error processing order: Order not found.");
-                tcs.SetResult(false);
-            }
-        }
-        else
-        {
-            Console.WriteLine($"Error processing order: {retrieveTask.Exception.Message}");
-            tcs.SetResult(false);
-        }
-    });
+## Code Examples
 
-    return tcs.Task;
-}
+The examples showcase the evolution of a basic asynchronous process in a .NET application, starting from nested callbacks to more elegant solutions using advanced .NET features and patterns.
 
-//
-// Usage example
-//
+### Nested Callbacks Problem
 
-int orderId = 123;
+Initially, we have a method `CompleteOrderProcessAsync` which is an example of the problematic, deeply nested callbacks approach.
 
-bool success = await CompleteOrderProcessAsync(orderId);
-if (success)
-{
-    Console.WriteLine("Order processing completed successfully.");
-}
-else
-{
-    Console.WriteLine("Order processing failed.");
-}
-```
+### Task-based Asynchronous Pattern (TAP)
 
-This approach suffers from deeply nested structures, error-prone error handling, and a challenging debugging experience.
+Code for refactoring the initial example using the `async` and `await` keywords to create a linear, more readable asynchronous process using TAP.
 
-## 1. Task-based Asynchronous Pattern (TAP)
+### Task Parallel Library (TPL) Dataflow
 
-The first step towards simplifying our code is to adopt the Task-based Asynchronous Pattern (TAP) using `async` and `await` keywords, which streamline the writing of asynchronous code. This pattern allows us to write code that appears linearly like synchronous code, but operates asynchronously.
+Examples using TPL Dataflow to create an assembly line of tasks which processes orders in a more declarative and clear way.
 
-```csharp
-public async Task<bool> CompleteOrderProcessAsync(int orderId)
-{
-    try
-    {
-        var order = await RetrieveOrderAsync(orderId) ?? throw new InvalidOperationException("Order not found.");
-        var discountedOrder = await ApplyDiscountsAsync(order);
-        await UpdateOrderAsync(discountedOrder);
-        return true;
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine("Error processing order: " + ex.Message);
-        return false;
-    }
-}
-```
+### Reactive Extensions (Rx)
 
-Just like that, our nested callbacks are a thing of the past. The code is cleaner, exceptions can be caught in a unified manner, and the cognitive load on any developer reading or debugging the code is greatly reduced.
+Illustration of converting the asynchronous process into observable sequences with Reactive Extensions, improving flow control and error handling.
+
+### Event Aggregator Pattern
+
+An Event Aggregator is introduced to manage event-driven asynchronous processes, showcasing how publishers and subscribers can interact without tightly coupled references.
+
+## Getting Started
+
+To try these code examples:
+
+1. Clone the repository.
+2. Open the solution file in Visual Studio.
+3. Understand the initial tangled callback example in the `CompleteOrderProcessAsync` method.
+4. Explore how each subsequent refactor improves the structure and maintainability.
+5. Run examples and observe the output for each pattern.
 
 
-## 2. TPL Dataflow
+## Conclusion
 
-Next, let's explore how the Task Parallel Library (TPL) Dataflow, a library for building complex asynchronous and parallel processing pipelines, offers a different technique compared to TAP.
+Through this series of examples, developers can learn to optimize asynchronous processes in C#, navigating away from "Callback Hell" towards clear, maintainable, and scalable code.
 
-```csharp
-public async Task<bool> CompleteOrderProcessAsync(int orderId)
-{
-    var retrieveBlock = new TransformBlock<int, Order>(async id => await RetrieveOrderAsync(id));
-    var applyDiscountsBlock = new TransformBlock<Order, Order>(async order => await ApplyDiscountsAsync(order));
-    var updateOrderBlock = new ActionBlock<Order>(async discountedOrder => await UpdateOrderAsync(discountedOrder));
+This guide anticipates that readers will have previously explored advanced iteration techniques for C# collections, as covered in the previous article in the series, [.NET Strategies with Advanced Iteration Techniques for C# Collections](https://fnbk.medium.com/net-strategies-to-simplify-asynchronous-code-in-c-be28a88cbea1).
 
-    retrieveBlock.LinkTo(applyDiscountsBlock, new DataflowLinkOptions { PropagateCompletion = true });
-    applyDiscountsBlock.LinkTo(updateOrderBlock, new DataflowLinkOptions { PropagateCompletion = true });
-
-    retrieveBlock.Post(orderId);
-    retrieveBlock.Complete();
-
-    try
-    {
-        await updateOrderBlock.Completion; // Await the completion of the last block  
-        Console.WriteLine("Process completed successfully.");
-        return true;
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Order processing failed: {ex.Message}");
-        return false;
-    }
-} 
-```
-
-By employing TPL Dataflow, our process is now represented as a series of connected blocks, resembling an assembly line. This not only makes the execution flow more explicit but also simplifies handling the data through each asynchronous step.
-
-
-## 3. Reactive Extensions
-
-For scenarios that deal with streams of data or events, Reactive Extensions (Rx) provides a powerful model. Rx turns our entire asynchronous process into observable sequences, enabling us to approach the problem with a more declarative mindset.
-
-```csharp
-public IObservable<bool> CompleteOrderProcess(int orderId)
-{
-    var orderObservable = Observable.FromAsync(() => RetrieveOrderAsync(orderId));
-    return orderObservable
-        .SelectMany(order =>
-        {
-            if (order == null)
-            {
-                throw new InvalidOperationException("Order not found.");
-            }
-            return Observable.FromAsync(() => ApplyDiscountsAsync(order));
-        })
-        .SelectMany(discountedOrder => Observable.FromAsync(() => UpdateOrderAsync(discountedOrder)))
-        .Select(_ => true)
-        .Catch<bool, Exception>(ex =>
-        {
-            Console.WriteLine($"Error processing order: {ex.Message}");
-            return Observable.Return(false);
-        });
-}
-
-//
-// Usage example
-//
-
-int orderId = 123;
-
-var orderProcessor = new OrderProcessor();
-var processedOrderObservable = orderProcessor.CompleteOrderProcess(orderId);
-
-processedOrderObservable.Subscribe(
-    onNext: success => Console.WriteLine(success ? "Order processed and saved successfully." : "Order processing failed."),
-    onError: ex => Console.WriteLine("An error occurred: " + ex.Message),
-    onCompleted: () => Console.WriteLine("Processing complete.")
-);
-```
-
-By using Reactive Extensions, we now have a chain of operations that clearly defines what should happen at each step, and we can gracefully handle exceptions. Subscriptions manage the outcome, making the code elegant and conceptually consistent.
-
-## 4. Event Aggregator Pattern
-
-Last on our transformative journey, we reach the Event Aggregator pattern, which provides a centralized mechanism to manage events between publishers and subscribers, thus avoiding direct callback references in event-driven systems.
-
-```csharp
-public class OrderProcessor
-{
-    private OrderEventAggregator _eventAggregator;
-
-    public OrderProcessor(OrderEventAggregator eventAggregator)
-    {
-        _eventAggregator = eventAggregator;
-        _eventAggregator.OnOrderProcessed += ProcessOrderAsync;
-    }
-
-    private async Task ProcessOrderAsync(int orderId)
-    {
-        try
-        {
-            var order = await RetrieveOrderAsync(orderId) ?? throw new InvalidOperationException("Order not found.");
-            var discountedOrder = await ApplyDiscountsAsync(order);
-            await UpdateOrderAsync(discountedOrder);
-            _eventAggregator.PublishSuccessEvent(new OrderSuccessEvent { OrderId = orderId });
-        }
-        catch (Exception ex)
-        {
-            _eventAggregator.PublishFailureEvent(new OrderFailureEvent
-            {
-                OrderId = orderId,
-                Error = ex.Message
-            });
-        }
-    }
-}
-
-//
-// Usage example
-//
-
-int orderId = 123;
-var eventAggregator = new OrderEventAggregator();
-
-eventAggregator.SubscribeSuccessEvent(async (e) =>
-{
-    Console.WriteLine($"Order {e.OrderId} processed successfully.");
-});
-
-eventAggregator.SubscribeFailureEvent(async (e) =>
-{
-    Console.WriteLine($"Order {e.OrderId} processing failed: {e.Error}");
-});
-
-var orderProcessor = new OrderProcessor(eventAggregator);
-await eventAggregator.PublishOrderAsync(orderId);
-```
-
-The Event Aggregator pattern embodies the principle of loose coupling. With it, we can publish events from one part of an application and subscribe to them in another without the two needing to know about each other directly.
+Feel free to contribute, share your thoughts, and discuss more elegant solutions!
 
