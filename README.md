@@ -1,8 +1,5 @@
 # Branching Strategies - Event Driven
 
-# Simplifying Asynchronous Code in C# with Design Patterns
-# .NET Strategies to Simplify Asynchronous Code in C#: The Journey from Nested Callbacks to Elegant Solutions
-
 ## Introduction
 
 This repository contains examples and code snippets discussed in the article [.NET Strategies with Advanced Iteration Techniques for C# Collections](https://fnbk.medium.com/net-strategies-to-simplify-asynchronous-code-in-c-be28a88cbea1). The article provides insights into handling complex asynchronous code paths in C# by employing various .NET features and design patterns.
